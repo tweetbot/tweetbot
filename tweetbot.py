@@ -23,16 +23,19 @@ consumer_secret = "zoQDy3Cxoo0hEbjBdkMu3vywrVZL424JFX8i06xERj7tBabm7T"
 #Arguments Parsing
 parser=argparse.ArgumentParser(description="TweetBot 1.0 Co-Developed by Amr El Sisy and Anmol Singh Hundal")
 
-parser.add_argument('-o', action="store", dest='path', required=True, metavar='Output_Path', help='path to store files of streamed tweets')
+parser.add_argument('-p','--path', action="store", dest='path', required=True, metavar='Output_Path', help='path to store files of streamed tweets')
 parser.add_argument('-S', action="store", dest='size', type=int, default=10, metavar='Filesize', help='specify size of a single file in MegaBytes')
 parser.add_argument('-n', action="store", dest='number', type=int, default=500, metavar='Number_of_Files', help='Specify the number of files we want to save')
-parser.add_argument('-t','--threads', action="store", dest='threadcount', type=int, default=1, choices=xrange(2,5), metavar='Number of threads', help='Specify the number of threads you want to run')
+parser.add_argument('-t','--threads', action="store", dest='threadcount', type=int, default=1, choices=xrange(2,5), metavar='Number of parser threads', help='Specify the number of parser threads you want to run')
+parser.add_argument('-d','--debug', action="store", dest='debug', type=bool, default=False, metavar='Debugger', help='Print additional debugging information')
 
 parsed_args=parser.parse_args()
 NUMBEROFFILES=parsed_args.number
 PATH=parsed_args.path
 FILESIZE=parsed_args.size
-PWORKERS=1
+DEBUG=parsed_args.debug
+PWORKERS=parsed_args.threadcount
+STREAMERS=1
 
 #Error chceking for filepath
 filepath=''
@@ -55,7 +58,8 @@ class listener(StreamListener):
             streamobj.disconnect()
 
         raw_tweets.put(data,True)
-        #print "Put on Rawqueue. RawSize", raw_tweets.qsize()
+        if DEBUG:
+            print "Put on Rawqueue. RawSize", raw_tweets.qsize()
 
     def on_error(self, status):
         if terminator:
@@ -90,12 +94,14 @@ class ParsingWorker(Thread):
             if terminator:
                 break
             curtweet=raw_tweets.get(True)
-            #print "Got an item from raw_tweets", current_thread().getName()
+            if DEBUG:
+                print "Got an item from raw_tweets", current_thread().getName()
 
             #Do some processing here
 
             processed_tweets.put(curtweet,True)
-            #print "Put on processed queue. ProcessedSize", processed_tweets.qsize()
+            if DEBUG:
+                print "Put on processed queue. ProcessedSize", processed_tweets.qsize()
 
 #Thread class that saves tweets from processed queue into a file
 class SavingWorker(Thread):
@@ -113,6 +119,8 @@ class SavingWorker(Thread):
             if terminator:
                 break
             curtweet=processed_tweets.get(True)
+            if DEBUG:
+                print "Get from processed queue. ProcessedSize", processed_tweets.qsize()
 
             #This if statement checks if file size is less than 10MB, if it is, we keep outputting to the file
             if(os.path.exists(filepath+"twitter_store"+str(filecounter)+".txt")):
@@ -137,20 +145,13 @@ filecounter=0
 raw_tweets=Queue(10)
 processed_tweets=Queue(10)
 
-#thread local storage
-tloc=threading.local()
-
 #global terminate status
 terminator=False
 
 #Signal Handler for SIGINT (Ctrl-C)
 def signal_handler(signal, frame):
     if current_thread().getName()=='MainThread':
-        print("\nCleaning up..")
-    global terminator
-    terminator=True
-    while threading.active_count() > 1:
-        time.sleep(0.1)
+        print "\nCleaning up.."
     if current_thread().getName()=='MainThread':
         print "Exiting."
     sys.exit()
@@ -158,9 +159,10 @@ def signal_handler(signal, frame):
 signal.signal(signal.SIGINT,signal_handler)
 
 #Start the streamer thread
-streamer=StreamingWorker(auth,l)
-streamer.setDaemon(True)
-streamer.start()
+for i in range(STREAMERS):
+    streamer=StreamingWorker(auth,l)
+    streamer.setDaemon(True)
+    streamer.start()
 
 #start processor threads
 for y in range(PWORKERS):
