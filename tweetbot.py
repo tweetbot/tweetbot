@@ -48,14 +48,11 @@ else:
 #File Size in bytes
 FILESIZEBYTES=FILESIZE*1024*1024
 
-#THIS IS A BASIC LISTENER THAT JUST PRINTS RECIEVED TWEETS TO STDOUT
+#Listener that catches tweets and puts them on raw tweets list
 class listener(StreamListener):
     def on_data(self, data):
-        #print current_thread().getName(),"caught tweet"
-        global tloc
         if terminator:
-            tloc.stream.disconnect()
-        #tloc.stream.disconnect()
+            streamobj.disconnect()
 
         raw_tweets.put(data,True)
         #print "Put on Rawqueue. RawSize", raw_tweets.qsize()
@@ -66,6 +63,7 @@ class listener(StreamListener):
         tloc.stream.disconnect()
         print status
 
+#Thread class that runs listener
 class StreamingWorker(Thread):
     def __init__(self, auth, listener):
         Thread.__init__(self)
@@ -73,14 +71,14 @@ class StreamingWorker(Thread):
         self.listener=listener
 
     def run(self):
-        #Handles streaming
-        stream = Stream(self.auth, self.listener)
-        tloc.stream=stream
+        global streamobj
+        streamobj = Stream(self.auth, self.listener)
+
         #LOCATION OF USA = [-124.85, 24.39, -66.88, 49.38,] filter tweets from the USA, and are written in English
-        print "Beginning to stream", current_thread().getName()
-        stream.filter(locations = [-124.85, 24.39, -66.88, 49.38,], languages=['en'])
+        streamobj.filter(locations = [-124.85, 24.39, -66.88, 49.38,], languages=['en'])
         return
 
+#Thread class that runs parser
 class ParsingWorker(Thread):
     def __init__(self):
         Thread.__init__(self)
@@ -99,7 +97,7 @@ class ParsingWorker(Thread):
             processed_tweets.put(curtweet,True)
             #print "Put on processed queue. ProcessedSize", processed_tweets.qsize()
 
-
+#Thread class that saves tweets from processed queue into a file
 class SavingWorker(Thread):
     def __init__(self):
         Thread.__init__(self)
@@ -148,7 +146,7 @@ terminator=False
 #Signal Handler for SIGINT (Ctrl-C)
 def signal_handler(signal, frame):
     if current_thread().getName()=='MainThread':
-        print("Cleaning up..")
+        print("\nCleaning up..")
     global terminator
     terminator=True
     while threading.active_count() > 1:
@@ -157,7 +155,7 @@ def signal_handler(signal, frame):
         print "Exiting."
     sys.exit()
 
-#signal.signal(signal.SIGINT,signal_handler)
+signal.signal(signal.SIGINT,signal_handler)
 
 #Start the streamer thread
 streamer=StreamingWorker(auth,l)
