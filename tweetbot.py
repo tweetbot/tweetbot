@@ -32,11 +32,11 @@ consumer_secret = "zoQDy3Cxoo0hEbjBdkMu3vywrVZL424JFX8i06xERj7tBabm7T"
 #Arguments Parsing
 parser=argparse.ArgumentParser(description="TweetBot 1.0 Co-Developed by Amr El Sisy and Anmol Singh Hundal")
 
-parser.add_argument('-p','--path', action="store", dest='path', required=True, metavar='Output_Path', help='path to store files of streamed tweets')
-parser.add_argument('-S', action="store", dest='size', type=int, default=10, metavar='Filesize', help='specify size of a single file in MegaBytes')
-parser.add_argument('-n', action="store", dest='number', type=int, default=500, metavar='Number_of_Files', help='Specify the number of files we want to save')
-parser.add_argument('-t','--threads', action="store", dest='threadcount', type=int, default=1, choices=xrange(2,5), metavar='Number of parser threads', help='Specify the number of parser threads you want to run')
-parser.add_argument('-d','--debug', action="store", dest='debug', type=bool, default=False, metavar='Debugger', help='Print additional debugging information')
+parser.add_argument('-p','--path', action="store", dest='path', type=str, default='.', metavar='Output_Path', help='path to store files of streamed tweets. By default the path will be current folder.')
+parser.add_argument('-s','--size', action="store", dest='size', type=int, default=10, metavar='Filesize', help='specify size of a single file in MegaBytes.')
+parser.add_argument('-n','--number', action="store", dest='number', type=int, default=500, metavar='Number_of_Files', help='Specify the number of files we want to save.')
+parser.add_argument('-t','--threads', action="store", dest='threadcount', type=int, default=1, choices=xrange(2,5), metavar='Number of parser threads', help='Specify the number of parser threads you want to run. By default there will be only one parser thread. Because of the limitation of the API, there is only one streamer thread.')
+parser.add_argument('-d','--debug', action="store_true", dest='debug', default=False, help='Print additional debugging information.')
 
 parsed_args=parser.parse_args()
 NUMBEROFFILES=parsed_args.number
