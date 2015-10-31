@@ -4,13 +4,15 @@ from tweepy import OAuthHandler
 from tweepy import Stream
 from threading import Thread
 from threading import current_thread
-import threading
 from Queue import Queue
+import threading
 import itertools
 import os
 import json
 import sys
 import argparse
+import time
+import signal
 
 #VARIABLES THAT CONTAIN THE USER CREDENTIALS TO ACCESS TWITTER API
 access_token = "269391427-milwXV0oyqRCIqCwGxIjzQkFb1ACABQztqJbUbK0"
@@ -24,38 +26,44 @@ parser=argparse.ArgumentParser(description="TweetBot 1.0 Co-Developed by Amr El 
 parser.add_argument('-o', action="store", dest='path', required=True, metavar='Output_Path', help='path to store files of streamed tweets')
 parser.add_argument('-S', action="store", dest='size', type=int, default=10, metavar='Filesize', help='specify size of a single file in MegaBytes')
 parser.add_argument('-n', action="store", dest='number', type=int, default=500, metavar='Number_of_Files', help='Specify the number of files we want to save')
-parser.add_argument('-t','--threads', action="store", dest='threadcount', type=int, default=1, metavar='Number of threads', help='Specify the number of threads you want to run')
+parser.add_argument('-t','--threads', action="store", dest='threadcount', type=int, default=1, choices=xrange(2,5), metavar='Number of threads', help='Specify the number of threads you want to run')
 
 parsed_args=parser.parse_args()
 NUMBEROFFILES=parsed_args.number
 PATH=parsed_args.path
 FILESIZE=parsed_args.size
-STREAMERS=parsed_args.threadcount
+PWORKERS=1
 
-TotalNum = NUMBEROFFILES
+#Error chceking for filepath
+filepath=''
+if PATH=='':
+    print "Empty path specified"
+    exit()
+elif PATH[-1]=='/':
+    filepath=PATH
+else:
+    filepath=PATH+'/'
+
+
+#File Size in bytes
 FILESIZEBYTES=FILESIZE*1024*1024
 
 #THIS IS A BASIC LISTENER THAT JUST PRINTS RECIEVED TWEETS TO STDOUT
 class listener(StreamListener):
     def on_data(self, data):
+        #print current_thread().getName(),"caught tweet"
         global tloc
-        print current_thread(), "Caught a tweet"
+        if terminator:
+            tloc.stream.disconnect()
+        #tloc.stream.disconnect()
 
-        #do some processing here
-
-        with open("twitter_store"+str(tloc.fn)+".txt", 'a') as output:
-            if(os.path.getsize("twitter_store"+str(tloc.fn)+".txt") < FILESIZEBYTES): #10000000 is 10 MB
-                output.write(data)
-                #This if statement checks if file size is less than 10MB, if it is, we keep outputting to the file
-            else:
-                if(tloc.fn < TotalNum): #if file size is 10 MB we start outputting to a new file
-                    global filecounter
-                    tloc.fn=filecounter.next()
-                else:
-                    stream.disconnect() #when filenum = totalsize, we disconnet the streamer
-                    #This will make our streamer stop streaming once we get 5 GB worth of data
+        raw_tweets.put(data,True)
+        #print "Put on Rawqueue. RawSize", raw_tweets.qsize()
 
     def on_error(self, status):
+        if terminator:
+            tloc.stream.disconnect()
+        tloc.stream.disconnect()
         print status
 
 class StreamingWorker(Thread):
@@ -65,15 +73,58 @@ class StreamingWorker(Thread):
         self.listener=listener
 
     def run(self):
-        #Handles thread local storage for filenum
-        global tloc
-        tloc.fn=filecounter.next()
-
         #Handles streaming
         stream = Stream(self.auth, self.listener)
+        tloc.stream=stream
         #LOCATION OF USA = [-124.85, 24.39, -66.88, 49.38,] filter tweets from the USA, and are written in English
+        print "Beginning to stream", current_thread().getName()
         stream.filter(locations = [-124.85, 24.39, -66.88, 49.38,], languages=['en'])
+        return
 
+class ParsingWorker(Thread):
+    def __init__(self):
+        Thread.__init__(self)
+
+    def run(self):
+        global terminator
+        #print "started parsing thead", current_thread().getName()
+        while 1:
+            if terminator:
+                break
+            curtweet=raw_tweets.get(True)
+            #print "Got an item from raw_tweets", current_thread().getName()
+
+            #Do some processing here
+
+            processed_tweets.put(curtweet,True)
+            #print "Put on processed queue. ProcessedSize", processed_tweets.qsize()
+
+
+class SavingWorker(Thread):
+    def __init__(self):
+        Thread.__init__(self)
+
+    def run(self):
+        #FIXME
+        #do path and file verification here.
+        global filecounter
+        global terminator
+        #print "Started saving thead", current_thread().getName()
+
+        while 1:
+            if terminator:
+                break
+            curtweet=processed_tweets.get(True)
+
+            #This if statement checks if file size is less than 10MB, if it is, we keep outputting to the file
+            if(os.path.exists(filepath+"twitter_store"+str(filecounter)+".txt")):
+                if(os.path.getsize(filepath+"twitter_store"+str(filecounter)+".txt") >= FILESIZEBYTES): #10000000 is 10 MB
+                    filecounter+=1
+            if filecounter>NUMBEROFFILES:
+                terminator=True
+
+            with open(filepath+"twitter_store"+str(filecounter)+".txt", 'a') as output:
+                output.write(curtweet)
 
 
 #For Streaming
@@ -81,12 +132,48 @@ l = listener()
 auth = OAuthHandler(consumer_key, consumer_secret)
 auth.set_access_token(access_token, access_token_secret)
 
-#File Counter
-filecounter=itertools.count()
+#Global File Counter
+filecounter=0
+
+#Global Tweets Lists
+raw_tweets=Queue(10)
+processed_tweets=Queue(10)
 
 #thread local storage
 tloc=threading.local()
 
-for x in range(STREAMERS):
-    streamer=StreamingWorker(auth,l)
-    streamer.start()
+#global terminate status
+terminator=False
+
+#Signal Handler for SIGINT (Ctrl-C)
+def signal_handler(signal, frame):
+    if current_thread().getName()=='MainThread':
+        print("Cleaning up..")
+    global terminator
+    terminator=True
+    while threading.active_count() > 1:
+        time.sleep(0.1)
+    if current_thread().getName()=='MainThread':
+        print "Exiting."
+    sys.exit()
+
+#signal.signal(signal.SIGINT,signal_handler)
+
+#Start the streamer thread
+streamer=StreamingWorker(auth,l)
+streamer.setDaemon(True)
+streamer.start()
+
+#start processor threads
+for y in range(PWORKERS):
+    pworker=ParsingWorker()
+    pworker.setDaemon(True)
+    pworker.start()
+
+#start filesaver thread
+filesaver=SavingWorker()
+filesaver.setDaemon(True)
+filesaver.start()
+
+while threading.active_count() > 1:
+        time.sleep(0.1)
