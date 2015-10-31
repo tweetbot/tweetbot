@@ -1,10 +1,17 @@
-#Import the necessary methods from tweepy library
+# *********
+#   TweetBot
+#   Effort by Amr El Sisy and Anmol Singh Hundal
+#   CS 172 - Information Retrieval Systems
+# *********
+
 from tweepy.streaming import StreamListener
 from tweepy import OAuthHandler
 from tweepy import Stream
 from threading import Thread
 from threading import current_thread
 from Queue import Queue
+from reppy.cache import RobotsCache
+from bs4 import BeautifulSoup
 import threading
 import itertools
 import os
@@ -13,6 +20,8 @@ import sys
 import argparse
 import time
 import signal
+import urllib2
+import re
 
 #VARIABLES THAT CONTAIN THE USER CREDENTIALS TO ACCESS TWITTER API
 access_token = "269391427-milwXV0oyqRCIqCwGxIjzQkFb1ACABQztqJbUbK0"
@@ -63,8 +72,7 @@ class listener(StreamListener):
 
     def on_error(self, status):
         if terminator:
-            tloc.stream.disconnect()
-        tloc.stream.disconnect()
+            streamobj.disconnect()
         print status
 
 #Thread class that runs listener
@@ -89,17 +97,36 @@ class ParsingWorker(Thread):
 
     def run(self):
         global terminator
-        #print "started parsing thead", current_thread().getName()
+        pattern='(https?://)(\w*\.)+\w+(/\w*)*'
+        #Initialize RobotsCache object
+        robots=RobotsCache()
         while 1:
             if terminator:
                 break
-            curtweet=raw_tweets.get(True)
+            curtweet=json.loads(raw_tweets.get(True))
             if DEBUG:
                 print "Got an item from raw_tweets", current_thread().getName()
 
-            #Do some processing here
+            #Get text and check if it has links using regex.
+            text=curtweet[u'text']
+            link=re.search(pattern,text)
+            if link:
+                if DEBUG:
+                    print "match"
+                flink=link.group()
 
-            processed_tweets.put(curtweet,True)
+                #Check if crawling is allowed
+                if robots.allowed(flink,'tweetbot'):
+                    soup=BeautifulSoup(urllib2.urlopen(flink),"lxml")
+
+                    #Check if page has title
+                    if soup.title:
+                        curtweet[u'linkTitle']=soup.title.string
+            else:
+                if DEBUG:
+                    print "not match"
+
+            processed_tweets.put(json.dumps(curtweet),True)
             if DEBUG:
                 print "Put on processed queue. ProcessedSize", processed_tweets.qsize()
 
@@ -122,9 +149,9 @@ class SavingWorker(Thread):
             if DEBUG:
                 print "Get from processed queue. ProcessedSize", processed_tweets.qsize()
 
-            #This if statement checks if file size is less than 10MB, if it is, we keep outputting to the file
             if(os.path.exists(filepath+"twitter_store"+str(filecounter)+".txt")):
-                if(os.path.getsize(filepath+"twitter_store"+str(filecounter)+".txt") >= FILESIZEBYTES): #10000000 is 10 MB
+                #This if statement checks if file size is less than the specified file size, if it is, we keep outputting to the file
+                if(os.path.getsize(filepath+"twitter_store"+str(filecounter)+".txt") >= FILESIZEBYTES):
                     filecounter+=1
             if filecounter>NUMBEROFFILES:
                 terminator=True
