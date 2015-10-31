@@ -4,21 +4,13 @@ from tweepy import OAuthHandler
 from tweepy import Stream
 from threading import Thread
 from threading import current_thread
+import threading
+from Queue import Queue
+import itertools
 import os
 import json
 import sys
 import argparse
-
-parser=argparse.ArgumentParser(description="TweetBot 1.0 Co-Developed by Amr El Sisy and Anmol Singh Hundal")
-
-parser.add_argument('-o', action="store", dest='path', required=True, metavar='Output_Path', help='path to store files of streamed tweets')
-parser.add_argument('-S', action="store", dest='size', type=int, default=10, metavar='Size', help='specify size of a single file in MegaBytes')
-parser.add_argument('-n', action="store", dest='number', type=int, default=500, metavar='Number_of_Files', help='Specify the number of files we want to save')
-
-parsed_args=parser.parse_args()
-number=parsed_args.number
-path=parsed_args.path
-size=parsed_args.size
 
 #VARIABLES THAT CONTAIN THE USER CREDENTIALS TO ACCESS TWITTER API
 access_token = "269391427-milwXV0oyqRCIqCwGxIjzQkFb1ACABQztqJbUbK0"
@@ -26,29 +18,39 @@ access_token_secret = "pGpnbtxvOWt6yRAQwwFidJDnO67A9Jmv0gOc6NlgvkVsA"
 consumer_key = "KHaVQSfjXZhOPvguDpwxOKwXO"
 consumer_secret = "zoQDy3Cxoo0hEbjBdkMu3vywrVZL424JFX8i06xERj7tBabm7T"
 
-#This will determine how many files this crawler creates
-#Each file is 10 MB by default.
-#When total size is 500, our crawler will create 500 files, each one of those will have the specified size.
-#This will result in a total of 5 GB worth of data.
-TotalNum = number # 10MB * 500 = 5GB (5GB OF DATA IS WHATS REQUIRED)
-sizebytes=size*1024*1024
+#Arguments Parsing
+parser=argparse.ArgumentParser(description="TweetBot 1.0 Co-Developed by Amr El Sisy and Anmol Singh Hundal")
 
-#first file will be called "twitter_store1.txt", second file "twitter_store2.txt", and so on, till "twitter_store500.txt"
-Filenum = 1
+parser.add_argument('-o', action="store", dest='path', required=True, metavar='Output_Path', help='path to store files of streamed tweets')
+parser.add_argument('-S', action="store", dest='size', type=int, default=10, metavar='Filesize', help='specify size of a single file in MegaBytes')
+parser.add_argument('-n', action="store", dest='number', type=int, default=500, metavar='Number_of_Files', help='Specify the number of files we want to save')
+parser.add_argument('-t','--threads', action="store", dest='threadcount', type=int, default=1, metavar='Number of threads', help='Specify the number of threads you want to run')
+
+parsed_args=parser.parse_args()
+NUMBEROFFILES=parsed_args.number
+PATH=parsed_args.path
+FILESIZE=parsed_args.size
+STREAMERS=parsed_args.threadcount
+
+TotalNum = NUMBEROFFILES
+FILESIZEBYTES=FILESIZE*1024*1024
 
 #THIS IS A BASIC LISTENER THAT JUST PRINTS RECIEVED TWEETS TO STDOUT
 class listener(StreamListener):
     def on_data(self, data):
-        global Filenum #for Filenum to be defined inside function
-        print "Caught a tweet"
-        print "thread id", current_thread()
-        with open("twitter_store"+str(Filenum)+".txt", 'a') as output:
-            if(os.path.getsize("twitter_store"+str(Filenum)+".txt") < sizebytes): #10000000 is 10 MB
+        global tloc
+        print current_thread(), "Caught a tweet"
+
+        #do some processing here
+
+        with open("twitter_store"+str(tloc.fn)+".txt", 'a') as output:
+            if(os.path.getsize("twitter_store"+str(tloc.fn)+".txt") < FILESIZEBYTES): #10000000 is 10 MB
                 output.write(data)
                 #This if statement checks if file size is less than 10MB, if it is, we keep outputting to the file
             else:
-                if(Filenum < TotalNum): #if file size is 10 MB we start outputting to a new file
-                    Filenum = Filenum + 1
+                if(tloc.fn < TotalNum): #if file size is 10 MB we start outputting to a new file
+                    global filecounter
+                    tloc.fn=filecounter.next()
                 else:
                     stream.disconnect() #when filenum = totalsize, we disconnet the streamer
                     #This will make our streamer stop streaming once we get 5 GB worth of data
@@ -57,34 +59,34 @@ class listener(StreamListener):
         print status
 
 class StreamingWorker(Thread):
-    def __init__(self):
+    def __init__(self, auth, listener):
         Thread.__init__(self)
+        self.auth=auth
+        self.listener=listener
 
     def run(self):
-        global auth
-        global l
-        stream = Stream(auth, l)
+        #Handles thread local storage for filenum
+        global tloc
+        tloc.fn=filecounter.next()
+
+        #Handles streaming
+        stream = Stream(self.auth, self.listener)
+        #LOCATION OF USA = [-124.85, 24.39, -66.88, 49.38,] filter tweets from the USA, and are written in English
         stream.filter(locations = [-124.85, 24.39, -66.88, 49.38,], languages=['en'])
 
-STREAMERS=4
 
+
+#For Streaming
 l = listener()
 auth = OAuthHandler(consumer_key, consumer_secret)
 auth.set_access_token(access_token, access_token_secret)
 
-if __name__ == '__main__':
-    #THIS HANDLES TWITTER AUTHENTICATION AND THE CONNECTION TO TWITTER STREAMING API
-    #print "Check one"
-    #print "thread id", threading.current_thread()
-    #stream = Stream(auth, l)
-    #print "Check two"
-    #print "thread id", threading.current_thread()
-    for x in range(STREAMERS):
-        streamer=StreamingWorker()
-        streamer.start()
+#File Counter
+filecounter=itertools.count()
 
-    #LOCATION OF USA = [-124.85, 24.39, -66.88, 49.38,]
-    #filter tweets from the USA, and are written in English
-    print "Check three"
-    print "thread id", current_thread()
+#thread local storage
+tloc=threading.local()
 
+for x in range(STREAMERS):
+    streamer=StreamingWorker(auth,l)
+    streamer.start()
