@@ -2,6 +2,8 @@
 from tweepy.streaming import StreamListener
 from tweepy import OAuthHandler
 from tweepy import Stream
+from threading import Thread
+from threading import current_thread
 import os
 import json
 import sys
@@ -14,10 +16,9 @@ parser.add_argument('-S', action="store", dest='size', type=int, default=10, met
 parser.add_argument('-n', action="store", dest='number', type=int, default=500, metavar='Number_of_Files', help='Specify the number of files we want to save')
 
 parsed_args=parser.parse_args()
-number=print parsed_args.number
-path=print parsed_args.path
-size=print parsed_args.size
-sys.exit()
+number=parsed_args.number
+path=parsed_args.path
+size=parsed_args.size
 
 #VARIABLES THAT CONTAIN THE USER CREDENTIALS TO ACCESS TWITTER API
 access_token = "269391427-milwXV0oyqRCIqCwGxIjzQkFb1ACABQztqJbUbK0"
@@ -39,8 +40,9 @@ Filenum = 1
 class listener(StreamListener):
     def on_data(self, data):
         global Filenum #for Filenum to be defined inside function
+        print "Caught a tweet"
+        print "thread id", current_thread()
         with open("twitter_store"+str(Filenum)+".txt", 'a') as output:
-            print "Opened file"
             if(os.path.getsize("twitter_store"+str(Filenum)+".txt") < sizebytes): #10000000 is 10 MB
                 output.write(data)
                 #This if statement checks if file size is less than 10MB, if it is, we keep outputting to the file
@@ -50,20 +52,39 @@ class listener(StreamListener):
                 else:
                     stream.disconnect() #when filenum = totalsize, we disconnet the streamer
                     #This will make our streamer stop streaming once we get 5 GB worth of data
-        print "Closed file"
 
     def on_error(self, status):
         print status
 
+class StreamingWorker(Thread):
+    def __init__(self):
+        Thread.__init__(self)
+
+    def run(self):
+        global auth
+        global l
+        stream = Stream(auth, l)
+        stream.filter(locations = [-124.85, 24.39, -66.88, 49.38,], languages=['en'])
+
+STREAMERS=4
+
+l = listener()
+auth = OAuthHandler(consumer_key, consumer_secret)
+auth.set_access_token(access_token, access_token_secret)
+
 if __name__ == '__main__':
-
     #THIS HANDLES TWITTER AUTHENTICATION AND THE CONNECTION TO TWITTER STREAMING API
-
-    l = listener()
-    auth = OAuthHandler(consumer_key, consumer_secret)
-    auth.set_access_token(access_token, access_token_secret)
-    stream = Stream(auth, l)
+    #print "Check one"
+    #print "thread id", threading.current_thread()
+    #stream = Stream(auth, l)
+    #print "Check two"
+    #print "thread id", threading.current_thread()
+    for x in range(STREAMERS):
+        streamer=StreamingWorker()
+        streamer.start()
 
     #LOCATION OF USA = [-124.85, 24.39, -66.88, 49.38,]
     #filter tweets from the USA, and are written in English
-    stream.filter(locations = [-124.85, 24.39, -66.88, 49.38,], languages=['en'])
+    print "Check three"
+    print "thread id", current_thread()
+
