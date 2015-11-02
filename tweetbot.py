@@ -108,7 +108,7 @@ class ParsingWorker(Thread):
 
     def run(self):
         global terminator
-        pattern='(https?://)(\w*\.)+\w+(/\w*)*'
+        pattern='(http://)(\w*\.)+\w+(/\w*)*'
         #Initialize RobotsCache object
         robots=RobotsCache()
         while 1:
