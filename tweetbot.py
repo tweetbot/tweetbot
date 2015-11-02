@@ -56,7 +56,7 @@ if not os.path.isdir(PATH):
     try:
         os.makedirs(PATH)
         print "Directory successfully created."
-    except OSError:
+    except OSError, (error, message):
         print "Error creating a directory at the specified path"
         exit()
 
@@ -155,14 +155,14 @@ class SavingWorker(Thread):
             if DEBUG:
                 print "Get from processed queue. ProcessedSize", processed_tweets.qsize()
 
-            if(os.path.exists(filepath+"twitter_store"+str(filecounter)+".txt")):
+            if(os.path.exists(PATH+"twitter_store"+str(filecounter)+".txt")):
                 #This if statement checks if file size is less than the specified file size, if it is, we keep outputting to the file
-                if(os.path.getsize(filepath+"twitter_store"+str(filecounter)+".txt") >= FILESIZEBYTES):
+                if(os.path.getsize(PATH+"twitter_store"+str(filecounter)+".txt") >= FILESIZEBYTES):
                     filecounter+=1
             if filecounter>NUMBEROFFILES:
                 terminator=True
 
-            with open(filepath+"twitter_store"+str(filecounter)+".txt", 'a') as output:
+            with open(PATH+"twitter_store"+str(filecounter)+".txt", 'a') as output:
                 output.write(curtweet)
 
 
@@ -191,22 +191,28 @@ def signal_handler(signal, frame):
 
 signal.signal(signal.SIGINT,signal_handler)
 
-#Start the streamer thread
-for i in range(STREAMERS):
+#Error handling for booting threads
+try:
+
+    #Start the streamer thread
     streamer=StreamingWorker(auth,l)
     streamer.setDaemon(True)
     streamer.start()
 
-#start processor threads
-for y in range(PWORKERS):
-    pworker=ParsingWorker()
-    pworker.setDaemon(True)
-    pworker.start()
+    #start processor threads
+    for y in range(PWORKERS):
+        pworker=ParsingWorker()
+        pworker.setDaemon(True)
+        pworker.start()
 
-#start filesaver thread
-filesaver=SavingWorker()
-filesaver.setDaemon(True)
-filesaver.start()
+    #start filesaver thread
+    filesaver=SavingWorker()
+    filesaver.setDaemon(True)
+    filesaver.start()
+
+except threading.ThreadError:
+    print "Error booting up threads"
+
 
 while threading.active_count() > 1:
         time.sleep(0.1)
