@@ -77,9 +77,13 @@ class listener(StreamListener):
             print "Put on Rawqueue. RawSize", raw_tweets.qsize()
 
     def on_error(self, status):
-        if terminator:
-            streamobj.disconnect()
-        print status
+        print 'Error on status', status
+
+    def on_limit(self, status):
+        print 'Limit threshold exceeded', status
+
+    def on_timeout(self, status):
+        print 'Stream disconnected; continuing...'
 
 #Thread class that runs listener
 class StreamingWorker(Thread):
@@ -109,12 +113,19 @@ class ParsingWorker(Thread):
         while 1:
             if terminator:
                 break
-            curtweet=json.loads(raw_tweets.get(True))
+            cur_raw_tweet=raw_tweets.get(True)
+            curtweet=json.loads(cur_raw_tweet)
             if DEBUG:
                 print "Got an item from raw_tweets", current_thread().getName()
 
+            # Check if twitter has tate limited you by sending a blank tweet
+            if u'text' in curtweet.keys():
+                text=curtweet[u'text']
+            else:
+                print "Rate limited by twitter. Continuing"
+                continue
+
             #Get text and check if it has links using regex.
-            text=curtweet[u'text']
             link=re.search(pattern,text)
             if link:
                 if DEBUG:
