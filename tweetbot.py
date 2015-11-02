@@ -60,9 +60,8 @@ if not os.path.isdir(PATH):
         print "Error creating a directory at the specified path"
         exit()
 
-
-print "path is", PATH
-exit()
+if DEBUG:
+    print "path is", PATH
 
 #File Size in bytes
 FILESIZEBYTES=FILESIZE*1024*1024
