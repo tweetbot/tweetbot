@@ -29,7 +29,10 @@ git clone https://github.com/tweetbot/tweetbot.git
 ###Install pip and
 
 ```bash
-#On mac you first need to install Homebrew. Then run
+#On mac, once way to install pip is using Homebrew. 
+#You can get install homebrew by following the 
+#instructions at http://brew.sh/. 
+#Then run
 brew install pip
 
 #On Linux, run
