@@ -21,20 +21,29 @@ Features
 Installation
 ------------
 
-###Install pip
+###Clone the repository
+```bash
+git clone https://github.com/tweetbot/tweetbot.git
+```
+
+###Install pip and
 
 ```bash
 #On mac you first need to install Homebrew. Then run
 brew install pip
 
 #On Linux, run
-sudo apt-get install pip
+sudo apt-get install python-pip
+sudo apt-get install libxml2-dev libxslt1-dev python-dev
+
+#Then update pip using
+sudo pip install --upgrade pip
 ```
 ###Install virtualenv and other dependencies
 
 ```bash
 #install virtual env
-pip install virtualenv
+sudo pip install virtualenv
 
 #Create a new virtual environment in the current folder.
 #This will make sure that the dependencies for tweetbot 
