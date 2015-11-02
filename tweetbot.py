@@ -40,22 +40,29 @@ parser.add_argument('-d','--debug', action="store_true", dest='debug', default=F
 
 parsed_args=parser.parse_args()
 NUMBEROFFILES=parsed_args.number
-PATH=parsed_args.path
 FILESIZE=parsed_args.size
 DEBUG=parsed_args.debug
 PWORKERS=parsed_args.threadcount
-STREAMERS=1
 
-#Error chceking for filepath
-filepath=''
-if PATH=='':
-    print "Empty path specified"
-    exit()
-elif PATH[-1]=='/':
-    filepath=PATH
-else:
-    filepath=PATH+'/'
+# Handle errors related to path
+PATH=os.path.expanduser(parsed_args.path)
 
+# Normalize the path, so that it works on both Unix Based Systems and Windows
+PATH=os.path.normpath(PATH)+os.sep
+
+# Check if path exits, if not try to create a directory over there
+if not os.path.isdir(PATH):
+    print "Path does not exist. Attempting to create a directory"
+    try:
+        os.makedirs(PATH)
+        print "Directory successfully created."
+    except OSError:
+        print "Error creating a directory at the specified path"
+        exit()
+
+
+print "path is", PATH
+exit()
 
 #File Size in bytes
 FILESIZEBYTES=FILESIZE*1024*1024
