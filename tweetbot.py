@@ -11,6 +11,7 @@ from threading import Thread
 from threading import current_thread
 from Queue import Queue
 from reppy.cache import RobotsCache
+import reppy
 from bs4 import BeautifulSoup
 import threading
 import itertools
@@ -133,12 +134,23 @@ class ParsingWorker(Thread):
                 flink=link.group()
 
                 #Check if crawling is allowed
-                if robots.allowed(flink,'tweetbot'):
-                    soup=BeautifulSoup(urllib2.urlopen(flink),"lxml")
+                try:
+                    if robots.allowed(flink,'tweetbot'):
+                        soup=BeautifulSoup(urllib2.urlopen(flink),"lxml")
 
-                    #Check if page has title
-                    if soup.title:
-                        curtweet[u'linkTitle']=soup.title.string
+                        #Check if page has title
+                        if soup.title:
+                            curtweet[u'linkTitle']=soup.title.string
+                except reppy.ReppyException:
+                    print "Error fetching robots.txt. Continuing"
+                    continue
+                except urllib2.URLError:
+                    print "Bad Url. Report to the developer. Continuing"
+                    continue
+                except urllib2.HTTPError:
+                    print "Error Fetching Web Page. Continuing"
+                    continue
+
             else:
                 if DEBUG:
                     print "not match"
