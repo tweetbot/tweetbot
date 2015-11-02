@@ -70,36 +70,47 @@ System limitations:-------------------	Our system doesn’t detect if two twee
 Tutorial<a name="tutorial"></a>
 --------
 -	First clone the repository.
+
 ![Step 1](images/step 1.png)
 
 -	Change into the repository and install pip
+
 ![Step 2](images/step 2.png)
 
 -	Upgrade Pip
+
 ![Step 3](images/step 3.png)
 
 -	Install Virtualenv
+
 ![Step 4](images/step 4.png)
 
 -	Create a new virtual environment.
+
 ![Step 5](images/step 5.png)
 
 -	Source the virtual environment.
+
 ![Step 6](images/step 6.png)
 
 -	Install other dependencies if you are on linux.
+
 ![Step 7](images/step 7.png)
 
 -	Install tweetbot requirements.
+
 ![Step 8](images/step 8.png)
 
 -	Run tweetbot with the help command to see the list of flags that can be passed.
+
 ![Step 9](images/step 9.png)
 
 -	Tweetbot in action with command line flags.
+
 ![Step 10](images/allflags.png)
 
 -	After you are done, deactivate the virtual environment.
+
 ![Step 10](images/step 10.png)
 
 
