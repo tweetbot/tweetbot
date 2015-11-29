@@ -186,7 +186,7 @@ class SavingWorker(Thread):
                 terminator=True
 
             with open(PATH+"twitter_store"+str(filecounter)+".txt", 'a') as output:
-                output.write(curtweet)
+                output.write(curtweet+"\n")
 
 
 #For Streaming
